@@ -99,3 +99,15 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# IDE
+.idea/
+
+# tf logs
+logs/
+
+# data
+data/
+!data/email_vectors.csv
+!data/enron_email_vectors_50d.csv
+!data/enron_glove_word_vectors_50d.txt
