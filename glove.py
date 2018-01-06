@@ -5,8 +5,7 @@ import tensorflow as tf
 import time
 
 from helpers import read_emails, save_dict, load_dict
-from params import EMBEDDING_SIZE
-from paths import PATH_TO_ENRON_DATASET
+from params import EMBEDDING_SIZE, PATH_TO_ENRON_DATASET
 
 
 class Glove:

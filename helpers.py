@@ -7,7 +7,7 @@ import os
 import re
 import time
 
-from params import EMBEDDING_SIZE
+from params import EMBEDDING_SIZE, PATH_TO_ENRON_DATASET
 from sif import SIF
 from six.moves import cPickle
 
