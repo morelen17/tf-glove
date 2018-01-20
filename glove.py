@@ -1,3 +1,4 @@
+import collections
 import numpy as np
 import os
 import re
@@ -14,7 +15,7 @@ class Glove:
         self._x_max = 100.0
         self._alpha = 0.75
         self._window_size = 10
-        self._vocabulary = {}
+        self._vocabulary = collections.Counter()
         self._vocab_size = 25000
         self._cooccur_matrix = []
 
@@ -42,47 +43,43 @@ class Glove:
 
     def build_vocab(self, data_folder: str):
         if not self._get_vocab_from_file():
-            pattern = re.compile('[^a-zA-Z]')
+            pattern = re.compile('[^a-z ]+')
             for file in read_emails(data_folder):
                 path_to_file = os.path.join(data_folder, file)
-                for line in open(path_to_file, 'rb'):
-                    for word in line.decode('utf8', 'ignore').split(' '):
-                        word = pattern.sub('', word.lower())
-                        if word != '':
-                            if word not in self._vocabulary:
-                                self._vocabulary[word] = 1
-                            else:
-                                self._vocabulary[word] += 1
-            sorted_vocab = sorted(self._vocabulary.items(),
-                                  key=lambda x: x[1],
-                                  reverse=True)  # [ ('the', 290813), (...), ...]
-            self._vocabulary = {sorted_vocab[idx][0]: idx for idx in range(self._vocab_size)}
+                with open(path_to_file, 'rb') as f:
+                    text = f.read()
+                text2 = pattern.sub('', text.decode('utf8', 'ignore').lower().replace('\n', ' '))
+                for word in text2.split(' '):
+                    if word != '':
+                        self._vocabulary[word] += 1
+            self._vocabulary = self._vocabulary.most_common(self._vocab_size)  # [ ('the', 290813), (...), ...]
+            self._vocabulary = {self._vocabulary[idx][0]: idx for idx in range(self._vocab_size)}
         return self._vocabulary
 
     def build_cooccur_matrix(self, path_to_folder: str):
         if not self._get_cooccur_matrix_from_file():
-            pattern = re.compile('[^a-zA-Z]')
+            pattern = re.compile('[^a-z ]+')
             cooc_mat = np.zeros((self._vocab_size, self._vocab_size), dtype=np.float32)
             for file in read_emails(path_to_folder):
                 path_to_file = os.path.join(path_to_folder, file)
                 with open(path_to_file, 'rb') as f:
-                    words = f.read().decode('utf8', 'ignore').replace('\n', ' ').split(' ')
-                    words = list(map(lambda x: pattern.sub('', x.lower()), words))
-                    words_len = len(words)
-                    for i in range(words_len):
+                    text = f.read()
+                text2 = pattern.sub('', text.decode('utf8', 'ignore').lower().replace('\n', ' '))
+                words = text2.split(' ')
+                words_len = len(words)
+                for i in range(words_len):
+                    if words[i] in self._vocabulary:
+                        idx = self._vocabulary[words[i]]
                         for j in range(1, self._window_size + 1):
-                            if words[i] in self._vocabulary:
-                                idx = self._vocabulary[words[i]]
-                                if i - j > 0:
-                                    if words[i - j] in self._vocabulary:
-                                        l_idx = self._vocabulary[words[i - j]]
-                                        cooc_mat[idx, l_idx] += 1.0 / j
-                                if i + j < words_len:
-                                    if words[i + j] in self._vocabulary:
-                                        r_idx = self._vocabulary[words[i + j]]
-                                        cooc_mat[idx, r_idx] += 1.0 / j
+                            if i - j > 0:
+                                if words[i - j] in self._vocabulary:
+                                    l_idx = self._vocabulary[words[i - j]]
+                                    cooc_mat[idx, l_idx] += 1.0 / j
+                            if i + j < words_len:
+                                if words[i + j] in self._vocabulary:
+                                    r_idx = self._vocabulary[words[i + j]]
+                                    cooc_mat[idx, r_idx] += 1.0 / j
             self._cooccur_matrix = cooc_mat
-            # np.transpose(np.nonzero(cooc_mat))  # indexes of non-zero elements
         return self._cooccur_matrix
 
     def build(self):
@@ -117,7 +114,7 @@ class Glove:
         return
 
     def _batch_generator(self):
-        cooccurrences = np.transpose(np.nonzero(self._cooccur_matrix))
+        cooccurrences = np.transpose(np.nonzero(self._cooccur_matrix))  # indexes of non-zero elements
         steps_per_epoch = int(len(cooccurrences) / self._batch_size) + 1
         for step in range(steps_per_epoch):
             idxs = np.random.choice(len(cooccurrences), self._batch_size)
@@ -155,14 +152,12 @@ if __name__ == '__main__':
     t = time.time()
     vocab = glove.build_vocab(data_folder=PATH_TO_ENRON_DATASET)
     print('Vocabulary build completed! Time, s:', (time.time() - t))
-    print('Vocabulary size:', len(vocab))
     # save_dict(vocab, './data/vocab_25k_enron.pkl')
     # print('Vocabulary saved!')
 
     t = time.time()
     coocur_matrix = glove.build_cooccur_matrix(path_to_folder=PATH_TO_ENRON_DATASET)
     print('Co-occurrence matrix build completed! Time, s:', (time.time() - t))
-    print('Co-occurrence matrix shape:', coocur_matrix.shape)
     # np.save('./data/cooccurrence_25k_enron.npy', coocur_matrix)
     # print('Co-occurrence matrix saved!')
 
